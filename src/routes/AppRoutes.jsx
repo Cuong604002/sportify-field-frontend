@@ -7,6 +7,7 @@ import { ProtectedRoute, AdminRoute, GuestRoute } from "./RouteGuards";
 // Lazy load pages
 const HomePage = lazy(() => import("@/pages/HomePage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const LoginCallbackPage = lazy(() => import("@/pages/LoginCallbackPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const FieldListPage = lazy(() => import("@/pages/FieldListPage"));
 const FieldDetailPage = lazy(() => import("@/pages/FieldDetailPage"));
@@ -80,6 +81,7 @@ export function AppRoutes() {
             path="/register"
             element={<GuestRoute><RegisterPage /></GuestRoute>}
           />
+          <Route path="/login-callback" element={<LoginCallbackPage />} />
         </Route>
 
         {/* Admin routes */}

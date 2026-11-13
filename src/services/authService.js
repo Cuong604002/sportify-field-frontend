@@ -2,6 +2,7 @@ import apiClient from "@/api/axiosClient";
 
 export const authService = {
   login: (data) => apiClient.post("/api/v1/auth/login", data),
+  exchangeGoogleCode: (data) => apiClient.post("/api/v1/auth/google/callback", data),
   register: (data) => apiClient.post("/api/v1/auth/register", data),
   refreshToken: (refreshToken) =>
     apiClient.post("/api/v1/auth/refresh", { refreshToken }),

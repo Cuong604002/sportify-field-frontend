@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dumbbell, Calendar, CreditCard, Trophy, TrendingUp, Layers, CheckCircle, Clock, AlertCircle, Wifi, Hourglass, BadgeDollarSign, XCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import FieldAnalyticsSection from "@/components/dashboard/FieldAnalyticsSection";
 
 function SimpleBarChart({ data, title, valueFn, formatValueFn, colorBase = "bg-primary/50", colorHover = "group-hover:bg-primary" }) {
   if (!data || data.length === 0) return <div className="text-center text-muted-foreground py-10">Không có dữ liệu</div>;
@@ -220,6 +221,9 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Phân tích hiệu suất từng sân */}
+      <FieldAnalyticsSection startDate={fromDate} endDate={toDate} />
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Booking Status Breakdown */}

@@ -8,25 +8,42 @@ import { MessageCircle, X, Send, Trash2, Bot, User, Sparkles, ChevronDown } from
 const SESSION_KEY = "sportify_ai_session_id"
 
 function getStoredSessionId() {
-  return sessionStorage.getItem(SESSION_KEY) || null
+  return localStorage.getItem(SESSION_KEY) || null
 }
 
 function saveSessionId(id) {
-  if (id) sessionStorage.setItem(SESSION_KEY, id)
+  if (id) localStorage.setItem(SESSION_KEY, id)
 }
 
 function removeSessionId() {
-  sessionStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(SESSION_KEY)
 }
 
 // Render markdown đơn giản: **bold**, *italic*, xuống dòng
 function renderMarkdown(text) {
   if (!text) return ""
-  return text
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary hover:underline font-medium">$1</a>')
-    .replace(/\n/g, "<br/>")
+  const escapeHtml = (value) => value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[char])
+  // Only permit in-app links or ordinary HTTP(S) links from generated content.
+  const safeLink = (href) => /^(\/|https?:\/\/)/i.test(href) && !/^\/\//.test(href)
+  let html = escapeHtml(text)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) =>
+    safeLink(href) ? `<a href="${href}" class="text-primary hover:underline font-medium">${label}</a>` : label
+  )
+  html = html.replace(/(^|\s)(https?:\/\/[^\s<]+)/g, (_, prefix, href) =>
+    `<span>${prefix}</span><a href="${href}" class="text-primary hover:underline font-medium">${href}</a>`
+  )
+  html = html.replace(/(^|\s)(\/fields\/\d+)(?=$|\s|[).,])/g, (_, prefix, href) =>
+    `<span>${prefix}</span><a href="${href}" class="text-primary hover:underline font-medium">${href}</a>`
+  )
+  return html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>").replace(/\n/g, "<br/>")
+}
+
+function getFieldPath(content) {
+  const match = content?.match(/(?:https?:\/\/[^\s/]+)?(\/fields\/\d+)/i)
+  return match?.[1] || null
 }
 
 // ─── Typing indicator ────────────────────────────────────────────────────────
@@ -114,6 +131,12 @@ function MessageBubble({ msg, onSuggestionClick }) {
             }`}
           dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
         />
+        {!isUser && getFieldPath(msg.content) && (
+          <button onClick={() => navigate(getFieldPath(msg.content))}
+            className="text-xs rounded-full bg-primary text-white px-3 py-1.5 hover:bg-primary/90 transition-colors">
+            Đặt sân ngay
+          </button>
+        )}
         {!isUser && msg.suggestions && (
           <SuggestionChips suggestions={msg.suggestions} onSelect={onSuggestionClick} />
         )}
@@ -134,6 +157,7 @@ export default function ChatWidget() {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const chatBodyRef = useRef(null)
+  const historyLoadedFor = useRef(null)
 
   // Scroll to bottom khi có tin mới
   useEffect(() => {
@@ -150,23 +174,35 @@ export default function ChatWidget() {
     }
   }, [isOpen])
 
-  // Tin nhắn chào mừng lần đầu
+  // Restore backend history once per session when opening the chat (including after reload).
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
-        {
-          role: "model",
-          content:
-            "Xin chào! Tôi là trợ lý AI của **Sportify**\n\nTôi có thể giúp bạn:\n- Tìm sân thể thao phù hợp\n- Xem thông tin lịch đặt sân\n- Tư vấn giá và khung giờ\n\nBạn cần hỗ trợ gì không?",
-          suggestions: [
-            "Sân bóng đá còn trống hôm nay?",
-            "Xem lịch đặt sân của tôi",
-            "Giá thuê sân bao nhiêu?",
-          ],
-        },
-      ])
+    if (!isOpen || historyLoadedFor.current === (sessionId || "new")) return
+    historyLoadedFor.current = sessionId || "new"
+    if (!sessionId) {
+      setMessages([welcomeMessage()])
+      return
     }
-  }, [])
+    let cancelled = false
+    aiService.getHistory(sessionId).then((res) => {
+      if (cancelled) return
+      const payload = res.data?.data || res.data
+      const history = (payload?.messages || []).map((m) => ({
+        role: m.role === "user" ? "user" : "model", content: m.content || "",
+      }))
+      setMessages(history.length ? history : [welcomeMessage()])
+    }).catch(() => {
+      if (!cancelled) setMessages([welcomeMessage()])
+    })
+    return () => { cancelled = true }
+  }, [isOpen, sessionId])
+
+  function welcomeMessage() {
+    return {
+      role: "model",
+      content: "Xin chào! Tôi là trợ lý AI của **Sportify**\n\nTôi có thể giúp bạn:\n- Tìm sân thể thao phù hợp\n- Xem thông tin lịch đặt sân\n- Tư vấn giá và khung giờ\n\nBạn cần hỗ trợ gì không?",
+      suggestions: ["Sân bóng đá còn trống hôm nay?", "Xem lịch đặt sân của tôi", "Giá thuê sân bao nhiêu?"],
+    }
+  }
 
   const sendMessage = useCallback(
     async (text) => {
@@ -225,17 +261,8 @@ export default function ChatWidget() {
     }
     removeSessionId()
     setSessionId(null)
-    setMessages([
-      {
-        role: "model",
-        content: "Cuộc trò chuyện đã được xóa. Tôi có thể giúp gì cho bạn? 😊",
-        suggestions: [
-          "Tìm sân thể thao gần đây",
-          "Xem lịch đặt sân của tôi",
-          "Tư vấn chọn sân",
-        ],
-      },
-    ])
+    historyLoadedFor.current = "new"
+    setMessages([welcomeMessage()])
   }
 
   return (

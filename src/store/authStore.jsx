@@ -86,6 +86,15 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const completeGoogleLogin = useCallback(async (tokens) => {
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    const { data: userProfile } = await authService.getMe();
+    setUserInfo(userProfile);
+    setUser(userProfile);
+    toast.success("Đăng nhập Google thành công!");
+    return userProfile;
+  }, []);
+
   const register = useCallback(async (data) => {
     setIsLoading(true);
     try {
@@ -110,7 +119,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated, isAdmin, isLoading, login, register, logout }}
+      value={{ user, isAuthenticated, isAdmin, isLoading, login, completeGoogleLogin, register, logout }}
     >
       {children}
     </AuthContext.Provider>
